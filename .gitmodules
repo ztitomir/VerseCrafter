@@ -1,0 +1,6 @@
+[submodule "third_party/Grounded-SAM-2"]
+	path = third_party/Grounded-SAM-2
+	url = https://github.com/IDEA-Research/Grounded-SAM-2.git
+[submodule "third_party/VideoX-Fun"]
+	path = third_party/VideoX-Fun
+	url = https://github.com/aigc-apps/VideoX-Fun.git
