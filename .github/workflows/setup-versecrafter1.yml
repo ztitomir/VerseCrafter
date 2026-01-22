@@ -1,26 +1,105 @@
-conda create -n versecrafter python=3.11 -y
-conda activate versecrafter
+name: Setup VerseCrafter
 
-# Install PyTorch
-conda install pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=12.1 -c pytorch -c nvidia -y 
+on:
+  workflow_dispatch:
+    inputs:
+      install_flash_attn:
+        description: "Install flash-attn (usually needs CUDA build toolchain)"
+        required: false
+        default: "false"
+      use_cuda:
+        description: "Install CUDA PyTorch (requires GPU runner; usually self-hosted)"
+        required: false
+        default: "false"
+  push:
+    paths:
+      - ".github/workflows/setup-versecrafter.yml"
+      - "requirements.txt"
+      - "**/*.py"
 
-# Install Python dependencies
-pip install -r requirements.txt
+jobs:
+  setup:
+    runs-on: ubuntu-latest
 
-# Install MoGe
-pip install git+https://github.com/microsoft/MoGe.git
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-# Install Grounded-SAM-2
-cd inference/Grounded-SAM-2
-pip install -e .
-pip install --no-build-isolation -e grounding_dino
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.11"
+          auto-activate-base: false
 
-# Install flash attention
-pip install flash-attn --no-build-isolation
+      - name: OS build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git
 
-# Install pytorch3d
-cd ../../
-git clone https://github.com/facebookresearch/pytorch3d.git
-cd pytorch3d
-pip install --no-build-isolation .
-cd ../VerseCrafter
+      - name: Create conda env
+        shell: bash
+        run: |
+          # Make conda activation available in non-interactive shells
+          source "$CONDA/etc/profile.d/conda.sh" 2>/dev/null || true
+          conda create -n versecrafter python=3.11 -y
+
+      - name: Install PyTorch (CPU)
+        if: ${{ inputs.use_cuda != 'true' }}
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 cpuonly -c pytorch
+
+      - name: Install PyTorch (CUDA 12.1)
+        if: ${{ inputs.use_cuda == 'true' }}
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=12.1 -c pytorch -c nvidia
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install MoGe
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          pip install git+https://github.com/microsoft/MoGe.git
+
+      - name: Install Grounded-SAM-2
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          cd inference/Grounded-SAM-2
+          pip install -e .
+          pip install --no-build-isolation -e grounding_dino
+
+      - name: Install flash-attn (optional)
+        if: ${{ inputs.install_flash_attn == 'true' }}
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          pip install flash-attn --no-build-isolation
+
+      - name: Install pytorch3d (from source)
+        shell: bash
+        run: |
+          source "$CONDA/etc/profile.d/conda.sh"
+          conda activate versecrafter
+          git clone https://github.com/facebookresearch/pytorch3d.git
+          cd pytorch3d
+          pip install --no-build-isolation .
+          cd ..
