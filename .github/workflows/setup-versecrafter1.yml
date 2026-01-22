@@ -21,7 +21,30 @@ jobs:
   setup:
     runs-on: ubuntu-latest
 
+    env:
+      # уменьшает расход диска на кэш pip
+      PIP_NO_CACHE_DIR: "1"
+
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          # оставляем чуть места системе, остальное отдаём сборке
+          root-reserve-mb: "1024"
+          temp-reserve-mb: "100"
+          swap-size-mb: "1024"
+          # удаляем самые “толстые” предустановки
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          # монтируем расширенный том прямо в workspace
+          build-mount-path: ${{ github.workspace }}
+
+      - name: Disk check (after maximize)
+        run: df -h
+        # (чтобы в логах было видно, сколько места стало)
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -74,11 +97,7 @@ jobs:
         run: |
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
-
-          # помогает при больших packfile/нестабильной сети
           git config --global http.postBuffer 524288000
-
-          # ретрай установки (самая частая починка для HTTP 500)
           for i in 1 2 3 4 5; do
             pip install git+https://github.com/microsoft/MoGe.git && break
             echo "MoGe install failed, retry $i/5..."
@@ -94,18 +113,19 @@ jobs:
 
       - name: Install Grounded-SAM-2
         shell: bash
+        env:
+          # чтобы сборка не распухала в /tmp
+          TMPDIR: ${{ github.workspace }}/.tmp
         run: |
+          mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
 
-          if [ -d "inference/Grounded-SAM-2" ]; then
-            cd inference/Grounded-SAM-2
-          else
-            git clone https://github.com/IDEA-Research/Grounded-SAM-2.git
-            cd Grounded-SAM-2
-          fi
+          # если это submodule, путь должен быть third_party/...
+          cd third_party/Grounded-SAM-2
 
-          pip install -e .
+          # часто экономит место, потому что не создаёт отдельное build env
+          pip install -e . --no-build-isolation
           pip install --no-build-isolation -e grounding_dino
 
       - name: Install flash-attn (optional)
@@ -118,10 +138,17 @@ jobs:
 
       - name: Install pytorch3d (from source)
         shell: bash
+        env:
+          TMPDIR: ${{ github.workspace }}/.tmp
         run: |
+          mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
           git clone https://github.com/facebookresearch/pytorch3d.git
           cd pytorch3d
           pip install --no-build-isolation .
           cd ..
+
+      - name: Disk check (end)
+        if: always()
+        run: df -h
