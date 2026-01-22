@@ -77,14 +77,30 @@ jobs:
           conda activate versecrafter
           pip install git+https://github.com/microsoft/MoGe.git
 
-      - name: Install Grounded-SAM-2
-        shell: bash
-        run: |
-          source "$CONDA/etc/profile.d/conda.sh"
-          conda activate versecrafter
-          cd inference/Grounded-SAM-2
-          pip install -e .
-          pip install --no-build-isolation -e grounding_dino
+      - name: Debug folders
+  run: |
+    pwd
+    ls -la
+    find . -maxdepth 3 -type d | sed 's|^\./||'
+
+- name: Install Grounded-SAM-2
+  shell: bash
+  run: |
+    source "$CONDA/etc/profile.d/conda.sh"
+    conda activate versecrafter
+
+    # Option A: if it exists in repo
+    if [ -d "inference/Grounded-SAM-2" ]; then
+      cd inference/Grounded-SAM-2
+    # Option B: otherwise clone it
+    else
+      git clone https://github.com/IDEA-Research/Grounded-SAM-2.git
+      cd Grounded-SAM-2
+    fi
+
+    pip install -e .
+    pip install --no-build-isolation -e grounding_dino
+
 
       - name: Install flash-attn (optional)
         if: ${{ inputs.install_flash_attn == 'true' }}
