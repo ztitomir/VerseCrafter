@@ -69,12 +69,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install MoGe
+      - name: Install MoGe (retry)
         shell: bash
         run: |
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
-          pip install git+https://github.com/microsoft/MoGe.git
+
+          # помогает при больших packfile/нестабильной сети
+          git config --global http.postBuffer 524288000
+
+          # ретрай установки (самая частая починка для HTTP 500)
+          for i in 1 2 3 4 5; do
+            pip install git+https://github.com/microsoft/MoGe.git && break
+            echo "MoGe install failed, retry $i/5..."
+            sleep $((i*15))
+          done
 
       - name: Debug folders
         shell: bash
