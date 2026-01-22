@@ -83,7 +83,7 @@ jobs:
     ls -la
     find . -maxdepth 3 -type d | sed 's|^\./||'
 
-- name: Install Grounded-SAM-2
+      - name: Install Grounded-SAM-2
   shell: bash
   run: |
     source "$CONDA/etc/profile.d/conda.sh"
