@@ -42,12 +42,11 @@ jobs:
       - name: Create conda env
         shell: bash
         run: |
-          # Make conda activation available in non-interactive shells
           source "$CONDA/etc/profile.d/conda.sh" 2>/dev/null || true
           conda create -n versecrafter python=3.11 -y
 
       - name: Install PyTorch (CPU)
-        if: ${{ inputs.use_cuda != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cuda != 'true' }}
         shell: bash
         run: |
           source "$CONDA/etc/profile.d/conda.sh"
@@ -55,7 +54,7 @@ jobs:
           conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 cpuonly -c pytorch
 
       - name: Install PyTorch (CUDA 12.1)
-        if: ${{ inputs.use_cuda == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_cuda == 'true' }}
         shell: bash
         run: |
           source "$CONDA/etc/profile.d/conda.sh"
@@ -82,7 +81,7 @@ jobs:
         run: |
           pwd
           ls -la
-          find . -maxdepth 3 -type d -print
+          find . -maxdepth 3 -type d | sed 's|^\./||'
 
       - name: Install Grounded-SAM-2
         shell: bash
@@ -101,7 +100,7 @@ jobs:
           pip install --no-build-isolation -e grounding_dino
 
       - name: Install flash-attn (optional)
-        if: ${{ inputs.install_flash_attn == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.install_flash_attn == 'true' }}
         shell: bash
         run: |
           source "$CONDA/etc/profile.d/conda.sh"
