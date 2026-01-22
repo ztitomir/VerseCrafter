@@ -44,20 +44,22 @@ jobs:
         run: |
           pip install "git+https://github.com/microsoft/MoGe.git"
 
-      - name: Install Grounded-SAM-2 (editable)
+- name: Install Grounded-SAM-2 (editable)
         run: |
-          cd inference/Grounded-SAM-2
+          pwd  # Покажет текущую папку (корень репозитория)
+          ls -la  # Покажет содержимое
+          cd VerseCrafter/inference/Grounded-SAM-2
           pip install -e .
           pip install --no-build-isolation -e grounding_dino
 
       - name: Install flash-attn
         run: |
+          cd VerseCrafter
           pip install flash-attn --no-build-isolation
 
       - name: Install pytorch3d from source
         run: |
-          cd ..
+          cd VerseCrafter
           git clone https://github.com/facebookresearch/pytorch3d.git
           cd pytorch3d
           pip install --no-build-isolation .
-          cd ../VerseCrafter
