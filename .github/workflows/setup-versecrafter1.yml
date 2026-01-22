@@ -24,26 +24,29 @@ jobs:
     env:
       # уменьшает расход диска на кэш pip
       PIP_NO_CACHE_DIR: "1"
+      # переносим conda package cache в workspace (а не в /home/runner/conda_pkgs_dir)
+      CONDA_PKGS_DIRS: ${{ github.workspace }}/conda_pkgs_dir
+      # временные файлы сборки тоже в workspace
+      TMPDIR: ${{ github.workspace }}/.tmp
 
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
         with:
-          # оставляем чуть места системе, остальное отдаём сборке
           root-reserve-mb: "1024"
           temp-reserve-mb: "100"
           swap-size-mb: "1024"
-          # удаляем самые “толстые” предустановки
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
           remove-codeql: "true"
-          # монтируем расширенный том прямо в workspace
           build-mount-path: ${{ github.workspace }}
 
-      - name: Disk check (after maximize)
-        run: df -h
-        # (чтобы в логах было видно, сколько места стало)
+      - name: Prepare dirs + disk check
+        shell: bash
+        run: |
+          mkdir -p "${{ github.workspace }}/conda_pkgs_dir" "${{ github.workspace }}/.tmp"
+          df -h
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +59,8 @@ jobs:
           auto-update-conda: true
           python-version: "3.11"
           auto-activate-base: false
+          # важно: меняем pkgs_dirs на workspace, чтобы не переполнять /home/runner
+          pkgs-dirs: ${{ github.workspace }}/conda_pkgs_dir
 
       - name: OS build deps
         run: |
@@ -75,6 +80,7 @@ jobs:
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
           conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 cpuonly -c pytorch
+          conda clean -a -y
 
       - name: Install PyTorch (CUDA 12.1)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_cuda == 'true' }}
@@ -83,6 +89,7 @@ jobs:
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
           conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=12.1 -c pytorch -c nvidia
+          conda clean -a -y
 
       - name: Install Python dependencies
         shell: bash
@@ -98,6 +105,7 @@ jobs:
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
           git config --global http.postBuffer 524288000
+
           for i in 1 2 3 4 5; do
             pip install git+https://github.com/microsoft/MoGe.git && break
             echo "MoGe install failed, retry $i/5..."
@@ -114,17 +122,14 @@ jobs:
       - name: Install Grounded-SAM-2
         shell: bash
         env:
-          # чтобы сборка не распухала в /tmp
           TMPDIR: ${{ github.workspace }}/.tmp
         run: |
           mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
 
-          # если это submodule, путь должен быть third_party/...
           cd third_party/Grounded-SAM-2
 
-          # часто экономит место, потому что не создаёт отдельное build env
           pip install -e . --no-build-isolation
           pip install --no-build-isolation -e grounding_dino
 
@@ -144,6 +149,7 @@ jobs:
           mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
+
           git clone https://github.com/facebookresearch/pytorch3d.git
           cd pytorch3d
           pip install --no-build-isolation .
