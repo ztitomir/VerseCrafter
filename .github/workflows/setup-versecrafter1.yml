@@ -11,6 +11,7 @@ on:
         description: "Install CUDA PyTorch (requires GPU runner; usually self-hosted)"
         required: false
         default: "false"
+
   push:
     paths:
       - ".github/workflows/setup-versecrafter.yml"
@@ -30,28 +31,44 @@ jobs:
       TMPDIR: ${{ github.workspace }}/.tmp
 
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: "1024"
-          temp-reserve-mb: "100"
-          swap-size-mb: "1024"
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
-          remove-codeql: "true"
-          build-mount-path: ${{ github.workspace }}
-
-      - name: Prepare dirs + disk check
-        shell: bash
-        run: |
-          mkdir -p "${{ github.workspace }}/conda_pkgs_dir" "${{ github.workspace }}/.tmp"
-          df -h
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Disk check (start)
+        run: df -h
+
+      # Освобождаем место на ubuntu-latest, иначе conda+pytorch часто падают с Errno 28
+      - name: Free disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
+          sudo docker builder prune -a -f || true
+          df -h
+
+      - name: Prepare dirs
+        shell: bash
+        run: |
+          mkdir -p "${{ github.workspace }}/conda_pkgs_dir" "${{ github.workspace }}/.tmp"
+          ls -la
+
+      - name: DEBUG - структура репозитория (до установки)
+        shell: bash
+        run: |
+          pwd
+          echo "=== ROOT ==="
+          ls -la
+          echo "=== requirements candidates ==="
+          find . -maxdepth 4 -name "requirements*.txt" -type f -print
+          echo "=== top dirs ==="
+          find . -maxdepth 2 -type d -print | sed 's|^\./||'
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
@@ -59,7 +76,7 @@ jobs:
           auto-update-conda: true
           python-version: "3.11"
           auto-activate-base: false
-          # важно: меняем pkgs_dirs на workspace, чтобы не переполнять /home/runner
+          # важно: pkgs cache в workspace
           pkgs-dirs: ${{ github.workspace }}/conda_pkgs_dir
 
       - name: OS build deps
@@ -105,14 +122,13 @@ jobs:
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
           git config --global http.postBuffer 524288000
-
           for i in 1 2 3 4 5; do
             pip install git+https://github.com/microsoft/MoGe.git && break
             echo "MoGe install failed, retry $i/5..."
             sleep $((i*15))
           done
 
-      - name: Debug folders
+      - name: Debug folders (after deps)
         shell: bash
         run: |
           pwd
@@ -127,9 +143,7 @@ jobs:
           mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
-
           cd third_party/Grounded-SAM-2
-
           pip install -e . --no-build-isolation
           pip install --no-build-isolation -e grounding_dino
 
@@ -149,7 +163,6 @@ jobs:
           mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
-
           git clone https://github.com/facebookresearch/pytorch3d.git
           cd pytorch3d
           pip install --no-build-isolation .
