@@ -147,7 +147,7 @@ jobs:
           find . -maxdepth 6 -type d -iname "*grounded*sam*" -print || true
           find . -maxdepth 3 -type d | sed 's|^\./||'
 
-      - name: Install Grounded-SAM-2
+      - name: Fetch + Install Grounded-SAM-2
         shell: bash
         env:
           TMPDIR: ${{ github.workspace }}/.tmp
@@ -156,23 +156,20 @@ jobs:
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
 
-          echo "Searching Grounded-SAM-2..."
-          find . -maxdepth 6 -type d -iname "*grounded*sam*" -print || true
+          mkdir -p third_party
 
-          if [ -d "inference/Grounded-SAM-2" ]; then
-            cd inference/Grounded-SAM-2
-          elif [ -d "third_party/Grounded-SAM-2" ]; then
-            cd third_party/Grounded-SAM-2
-          else
-            echo "ERROR: Grounded-SAM-2 directory not found."
-            echo "Check submodules (.gitmodules) and checkout submodules: recursive."
-            echo "Top-level dirs:"
-            find . -maxdepth 2 -type d -print
-            exit 1
+          # Если submodule не приехал — клонируем вручную
+          if [ ! -d "third_party/Grounded-SAM-2" ]; then
+            echo "third_party/Grounded-SAM-2 not found. Cloning..."
+            git clone --depth 1 https://github.com/IDEA-Research/Grounded-SAM-2.git third_party/Grounded-SAM-2
           fi
 
+          cd third_party/Grounded-SAM-2
           pip install -e . --no-build-isolation
           pip install --no-build-isolation -e grounding_dino
+
+          # чтобы меньше упираться в диск на следующих шагах
+          conda clean -a -y
 
       - name: Install flash-attn (optional)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.install_flash_attn == 'true' }}
