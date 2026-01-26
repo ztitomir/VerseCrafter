@@ -65,8 +65,16 @@ jobs:
           pwd
           echo "=== ROOT ==="
           ls -la
+
+          echo "=== inference ==="
+          ls -la inference 2>/dev/null || echo "НЕТ inference/"
+
           echo "=== requirements candidates ==="
           find . -maxdepth 4 -name "requirements*.txt" -type f -print
+
+          echo "=== search Grounded-SAM-2 dirs ==="
+          find . -maxdepth 6 -type d -iname "*grounded*sam*" -print || true
+
           echo "=== top dirs ==="
           find . -maxdepth 2 -type d -print | sed 's|^\./||'
 
@@ -133,6 +141,10 @@ jobs:
         run: |
           pwd
           ls -la
+          echo "=== inference ==="
+          ls -la inference 2>/dev/null || echo "НЕТ inference/"
+          echo "=== search Grounded-SAM-2 dirs ==="
+          find . -maxdepth 6 -type d -iname "*grounded*sam*" -print || true
           find . -maxdepth 3 -type d | sed 's|^\./||'
 
       - name: Install Grounded-SAM-2
@@ -143,7 +155,22 @@ jobs:
           mkdir -p "$TMPDIR"
           source "$CONDA/etc/profile.d/conda.sh"
           conda activate versecrafter
-          cd third_party/Grounded-SAM-2
+
+          echo "Searching Grounded-SAM-2..."
+          find . -maxdepth 6 -type d -iname "*grounded*sam*" -print || true
+
+          if [ -d "inference/Grounded-SAM-2" ]; then
+            cd inference/Grounded-SAM-2
+          elif [ -d "third_party/Grounded-SAM-2" ]; then
+            cd third_party/Grounded-SAM-2
+          else
+            echo "ERROR: Grounded-SAM-2 directory not found."
+            echo "Check submodules (.gitmodules) and checkout submodules: recursive."
+            echo "Top-level dirs:"
+            find . -maxdepth 2 -type d -print
+            exit 1
+          fi
+
           pip install -e . --no-build-isolation
           pip install --no-build-isolation -e grounding_dino
 
